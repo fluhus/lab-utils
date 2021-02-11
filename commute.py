@@ -1,8 +1,10 @@
 """Common utilities."""
+import gzip
 import inspect
 import sys
 import time
-from typing import Iterable
+from contextlib import contextmanager
+from typing import IO, Iterable
 
 import numpy as np
 import requests
@@ -40,7 +42,7 @@ def flatten(a):
 
 _done = 0
 _done_t = 0
-_done_checkpoints = {10 ** i for i in range(9)}
+_done_checkpoints = {10**i for i in range(9)}
 _done_checkpoints |= {3 * x for x in _done_checkpoints}
 
 
@@ -71,17 +73,55 @@ def linenum():
     return inspect.currentframe().f_back.f_lineno
 
 
+def mylog(*args):
+    fr = inspect.currentframe().f_back
+    ln = fr.f_lineno
+    fl = fr.f_code.co_filename
+    print(f'{fl}:{ln}', file=sys.stderr)
+    print('AMIT:', *args, file=sys.stderr)
+
+
+_TIMTIM_CHECKPOINTS = \
+    frozenset(a * (10 ** b) for a in (1, 2, 5) for b in range(10))
+
+
 class timtim:
     def __init__(self):
         self.t = time.monotonic()
-        self.checkpoints = {a * (10 ** b) for a in (1, 2, 5) for b in range(8)}
         self.i = 0
 
-    def done(self):
+    def increment(self):
         self.i += 1
-        if self.i in self.checkpoints:
-            print('\r{} ({:.1f}s)'.format(
-                self.i, time.monotonic() - self.t), end='')
+        if self.i in _TIMTIM_CHECKPOINTS:
+            print('\r{} ({:.1f}s)'.format(self.i,
+                                          time.monotonic() - self.t),
+                  end='')
+
+    def done(self):
+        print('\r{} ({:.1f}s)'.format(self.i, time.monotonic() - self.t))
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.done()
+
+
+@contextmanager
+def timer(prefix=None):
+    t = time.monotonic()
+    yield
+    t = time.monotonic() - t
+    if prefix is not None:
+        print('{:15} '.format(prefix), end='')
+    if t < 0.001:
+        print('{:.1f}us'.format(t * 1000000))
+    elif t < 1:
+        print('{:.1f}ms'.format(t * 1000))
+    elif t < 60:
+        print('{:.1f}s'.format(t))
+    else:
+        print('{:.1f}m'.format(t / 60))
 
 
 def get_lnsrv(addr: str, end='END') -> Iterable[str]:
@@ -90,3 +130,13 @@ def get_lnsrv(addr: str, end='END') -> Iterable[str]:
     while line != end:
         yield line
         line = requests.get(addr).text.strip()
+
+
+def zopen(path: str, mode: str = 'rt') -> IO:
+    """Opens a file for I/O. If path has a gz/gzip suffix, uses the gzip
+    library."""
+    if path.endswith('.gz') or path.endswith('.gzip'):
+        if mode.startswith('w'):
+            return gzip.open(path, mode, compresslevel=1)
+        return gzip.open(path, mode)
+    return open(path, mode)
