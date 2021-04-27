@@ -6,7 +6,6 @@ import time
 from contextlib import contextmanager
 from typing import IO, Iterable
 
-import numpy as np
 import requests
 
 
@@ -17,18 +16,7 @@ def printerr(*args, **kwargs):
 _t: float = None
 
 
-def tic() -> None:
-    """Records current time for toc()."""
-    global _t
-    _t = time.monotonic()
-
-
-def toc() -> None:
-    """Prints the time elapsed since calling tic()."""
-    printerr('Took {:.1f} seconds'.format(time.monotonic() - _t))
-
-
-def interactive() -> bool:
+def is_interactive() -> bool:
     """Indicates whether this run is batch or interactive shell."""
     return hasattr(sys, "ps1")
 
@@ -62,17 +50,6 @@ def done_reset():
     _done = 0
 
 
-def hist(a, bins=10) -> None:
-    from plotly import express as px
-    hy, hx = np.histogram(a, bins)
-    px.bar(x=hx[:-1], y=hy).show()
-
-
-def linenum():
-    """Returns the current line number."""
-    return inspect.currentframe().f_back.f_lineno
-
-
 def mylog(*args):
     fr = inspect.currentframe().f_back
     ln = fr.f_lineno
@@ -101,7 +78,7 @@ class timtim:
         print('\r{} ({:.1f}s)'.format(self.i, time.monotonic() - self.t))
 
     def __enter__(self):
-        pass
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.done()
@@ -110,10 +87,12 @@ class timtim:
 @contextmanager
 def timer(prefix=None):
     t = time.monotonic()
+    if prefix is not None:
+        print(prefix)
     yield
     t = time.monotonic() - t
     if prefix is not None:
-        print('{:15} '.format(prefix), end='')
+        print('  --> ', end='')
     if t < 0.001:
         print('{:.1f}us'.format(t * 1000000))
     elif t < 1:
