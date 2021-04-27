@@ -6,7 +6,8 @@ from subprocess import PIPE, Popen
 from typing import IO, List
 
 ITEM_RE = re.compile('^\\s*\\d')
-NAME_RE = re.compile('^\\s*\\S+\\s+\\S+\\s+\\S+\\s+(\\S+)')
+NAME_RE = re.compile('^\\s*(\\S+\\s+){3}(\\S+)')
+STATUS_RE = re.compile('^\\s*(\\S+\\s+){4}(\\S+)')
 MEM_RE = re.compile('mem_free=(\\d+)(.)')
 CPU_RE = re.compile('\\sthreads (\\d+)\\s')
 
@@ -16,14 +17,22 @@ EPS = sys.float_info.epsilon
 
 def parse_item(lines: List):
     cat = ' '.join(lines)
-    return extract_user(cat), 1, extract_cpu(cat), extract_mem(cat)
+    return extract_user(cat), 1, extract_cpu(cat), extract_mem(
+        cat), extract_status(cat)
 
 
 def extract_user(s: str) -> str:
     m = NAME_RE.match(s)
     if not m:
         raise ValueError('Could not find username: ' + s)
-    return m.group(1)
+    return m.group(2)
+
+
+def extract_status(s: str) -> str:
+    m = STATUS_RE.match(s)
+    if not m:
+        raise ValueError('Could not find status: ' + s)
+    return m.group(2)
 
 
 def extract_mem(s: str) -> int:
@@ -65,6 +74,9 @@ def tupsum(t1, t2):
 def collect_items(f: IO):
     d = defaultdict(lambda: (0, 0, 0))
     for item in parse_items(f):
+        if item[-1] != 'r':
+            continue
+        item = item[:-1]
         d[item[0]] = tupsum(d[item[0]], item[1:])
     return d
 
