@@ -1,10 +1,12 @@
 """Common utilities."""
 import gzip
 import inspect
+import os
 import sys
 import time
 from contextlib import contextmanager
-from typing import IO, Iterable
+from time import monotonic
+from typing import IO, Callable, Iterable
 
 import requests
 
@@ -70,9 +72,7 @@ class timtim:
     def increment(self):
         self.i += 1
         if self.i in _TIMTIM_CHECKPOINTS:
-            print('\r{} ({:.1f}s)'.format(self.i,
-                                          time.monotonic() - self.t),
-                  end='')
+            print('\r{} ({:.1f}s)'.format(self.i, time.monotonic() - self.t), end='')
 
     def done(self):
         print('\r{} ({:.1f}s)'.format(self.i, time.monotonic() - self.t))
@@ -84,23 +84,37 @@ class timtim:
         self.done()
 
 
+def humanize_seconds(s: float) -> str:
+    if s < 0.000001:
+        return f'{s*1000000000:.1f}ns'
+    if s < 0.001:
+        return f'{s*1000000:.1f}us'
+    elif s < 1:
+        return f'{s*1000:.1f}ms'
+    elif s < 60:
+        return f'{s:.1f}s'
+    elif s < 3600:
+        return f'{s/60:.1f}m'
+    else:
+        return f'{s/3600:.1f}h'
+
+
 @contextmanager
-def timer(prefix=None):
+def timer(prefix=None, n=None):
     t = time.monotonic()
     if prefix is not None:
-        print(prefix)
+        print(prefix, end='')
+        if n is not None:
+            print(f' ({n} items)', end='')
+        print()
     yield
     t = time.monotonic() - t
     if prefix is not None:
         print('  --> ', end='')
-    if t < 0.001:
-        print('{:.1f}us'.format(t * 1000000))
-    elif t < 1:
-        print('{:.1f}ms'.format(t * 1000))
-    elif t < 60:
-        print('{:.1f}s'.format(t))
-    else:
-        print('{:.1f}m'.format(t / 60))
+    print(humanize_seconds(t), end='')
+    if n is not None:
+        print(f' ({humanize_seconds(t/n)} per item)', end='')
+    print()
 
 
 def get_lnsrv(addr: str, end='END') -> Iterable[str]:
@@ -119,3 +133,36 @@ def zopen(path: str, mode: str = 'rt') -> IO:
             return gzip.open(path, mode, compresslevel=1)
         return gzip.open(path, mode)
     return open(path, mode)
+
+
+def benchmark(f: Callable, internal_loop=False):
+    """Calls f in a loop and prints timing results."""
+    n = 1
+    diff = 0
+    while diff < 2:
+        t = monotonic()
+        if internal_loop:
+            f(n)
+        else:
+            for _ in range(n):
+                f()
+        diff = monotonic() - t
+        n = int(n * 1.5 + 0.5)
+    print(f'{n} iterations {diff:.1f}s ({diff/n:.1e}s / iteration)')
+
+
+def assert_type(val, typ):
+    if not isinstance(val, typ):
+        raise TypeError(f'received type {type(val)}, expected {typ}')
+
+
+def assert_dtype(val, typ):
+    if str(val.dtype) != str(typ):
+        raise TypeError(f'received type {val.dtype}, expected {typ}')
+
+
+def force_remove(f: str):
+    try:
+        os.remove(f)
+    except FileNotFoundError:
+        pass  # Ok
