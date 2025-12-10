@@ -1,10 +1,10 @@
 import re
+from contextlib import contextmanager
 from typing import Sequence
+
 import numpy as np
 from matplotlib import pyplot as plt
-from contextlib import contextmanager
 
-_OUTPUT_PREFIX = '/home/amitmit/Desktop/analysis/'
 _IMG_SUFFIXES = ['png', 'jpg']
 _IMG_RE = re.compile('|'.join('\\.' + x + '$' for x in _IMG_SUFFIXES))
 _save = True
@@ -21,15 +21,15 @@ def figure(*args, **kwargs):
 
 
 def shave(file: str):
+    if not _IMG_RE.match(file):
+        file += '.png'
     if _save:
-        if not file.startswith('/'):
-            file = _OUTPUT_PREFIX + file
+        # if not file.startswith('/'):
+        #     file = _OUTPUT_PREFIX + file
         plt.savefig(file)
         plt.close()
     else:
         plt.show()
-    if not _IMG_RE.match(file):
-        file += '.png'
     return file
 
 
@@ -71,14 +71,16 @@ def ascii_hist(vals, h=6, w=80):
 
 
 @contextmanager
-def ctx(f, dpi=200, sizeratio=1, **kwargs):
+def ctx(f, dpi=300, sizeratio=1.0, **kwargs):
     """Creates a figure with dpi=200, and calls tight_layout and close at the end."""
     if 'figsize' in kwargs:
         raise KeyError('use sizeratio instead of figsize')
     if type(sizeratio) in {int, float}:
         kwargs['figsize'] = [6.4 * sizeratio, 4.8 * sizeratio]
-    if type(sizeratio) in {tuple, list}:
+    elif type(sizeratio) in {tuple, list}:
         kwargs['figsize'] = [6.4 * sizeratio[0], 4.8 * sizeratio[1]]
+    else:
+        raise ValueError(f'unsupported sizeratio type: {type(sizeratio)}')
     fig = figure(dpi=dpi, **kwargs)
     yield fig
     plt.tight_layout()

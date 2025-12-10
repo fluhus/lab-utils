@@ -17,15 +17,6 @@ import scipy
 from scipy.stats import gaussian_kde, pearsonr, spearmanr
 
 
-def printerr(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
-
-
-def is_interactive() -> bool:
-    """Indicates whether this run is batch or interactive shell."""
-    return hasattr(sys, "ps1")
-
-
 def flatten(a):
     """Flattens a list or an iterable."""
     if isinstance(a, list):
